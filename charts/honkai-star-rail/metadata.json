@@ -1,0 +1,12 @@
+{
+  "app_name": "honkai-star-rail",
+  "created_at": "2025-06-19T20:44:38.266298",
+  "chart_data_size": 6154,
+  "analysis_sections": [
+    "topic_distribution",
+    "topic_coherence",
+    "topic_words",
+    "doc_topic_matrix",
+    "overall_summary"
+  ]
+}

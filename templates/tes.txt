@@ -1,0 +1,813 @@
+Anda bilang:
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDA - {{ app_name }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            color: #1a202c;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.05"><circle cx="7" cy="7" r="3"/><circle cx="53" cy="53" r="3"/><circle cx="7" cy="53" r="3"/><circle cx="53" cy="7" r="3"/></g></g></svg>') repeat;
+            z-index: -1;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-logo {
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+            text-decoration: none;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .navbar-menu {
+            display: flex;
+            list-style: none;
+            gap: 30px;
+        }
+
+        .navbar-menu a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            padding: 8px 16px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-menu a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .navbar-toggle {
+            display: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: #fff;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 50vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 0 20px;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+            z-index: 1;
+        }
+
+        .hero-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: 2;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 3;
+            max-width: 900px;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            animation: fadeInUp 1s ease;
+            font-weight: 700;
+            letter-spacing: -1px;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-description {
+            font-size: 1.4rem;
+            opacity: 0.95;
+            margin-bottom: 40px;
+            animation: fadeInUp 1s ease 0.2s;
+            animation-fill-mode: both;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .app-icon {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            border-radius: 24px;
+            margin: 0 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            vertical-align: middle;
+            animation: fadeInUp 1s ease 0.1s, float 3s ease-in-out infinite;
+            animation-fill-mode: both;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 40px;
+            padding: 0 20px;
+            position: relative;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            animation: fadeIn 0.8s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .section-heading {
+            font-size: 2rem;
+            color: #2d3748;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .section-heading::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .data-preview {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            border: 1px solid rgba(203, 213, 225, 0.5);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .data-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 80% 20%, rgba(102, 126, 234, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .data-preview h4 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 20px 25px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 500;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            border: 1px solid #f6d55c;
+        }
+
+        .alert i {
+            font-size: 1.2em;
+        }
+
+        /* Buttons and Progress */
+        .model-section {
+            margin: 40px 0;
+            text-align: center;
+        }
+
+        .button {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 8px 12px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .button:hover::before {
+            left: 100%;
+        }
+
+        .button:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        .button:disabled {
+            background: linear-gradient(135deg, #cbd5e0, #e2e8f0);
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+            color: #a0aec0;
+        }
+
+        #cancel-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+
+        #cancel-btn:hover {
+            box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
+        }
+
+        #progress-container {
+            margin: 30px auto;
+            max-width: 700px;
+        }
+
+        #progress-bar {
+            background: rgba(203, 213, 225, 0.5);
+            height: 16px;
+            width: 100%;
+            border-radius: 100px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        #progress-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 100px;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+            position: relative;
+        }
+
+        #progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        #progress-text {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 16px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        /* PyLDAvis container */
+        .pyldavis-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            overflow-x: auto;
+            animation: fadeIn 0.8s ease 0.3s;
+            animation-fill-mode: both;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .pyldavis-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .pyldavis-heading {
+            text-align: center;
+            color: #2d3748;
+            font-size: 2rem;
+            margin: 15px 0 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .pyldavis-heading::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            background: rgba(255, 255, 255, 0.8);
+            transition: background-color 0.3s ease;
+        }
+
+        tr:hover td {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .data-table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 30px;
+            border-radius: 12px;
+        }
+
+        /* Loading Animation */
+        .loading-wave {
+            width: 60px;
+            height: 60px;
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .loading-bar {
+            width: 8px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            animation: wave 1.2s ease-in-out infinite;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .loading-bar:nth-child(2) { animation-delay: 0.1s; }
+        .loading-bar:nth-child(3) { animation-delay: 0.2s; }
+        .loading-bar:nth-child(4) { animation-delay: 0.3s; }
+
+        @keyframes wave {
+            0%, 100% { 
+                height: 20px; 
+                opacity: 0.7;
+            }
+            50% { 
+                height: 50px; 
+                opacity: 1;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 15px 20px;
+            }
+
+            .navbar-menu {
+                position: fixed;
+                top: 0;
+                right: -100%;
+                width: 80%;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.95);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                transition: right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                gap: 20px;
+            }
+
+            .navbar-menu.active {
+                right: 0;
+            }
+
+            .navbar-menu a {
+                font-size: 18px;
+                padding: 12px 24px;
+            }
+
+            .navbar-toggle {
+                display: block;
+                z-index: 1001;
+            }
+
+            .hero {
+                height: 40vh;
+                padding-top: 80px;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-description {
+                font-size: 1.1rem;
+            }
+
+            .app-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .container, .pyldavis-container {
+                padding: 30px 20px;
+                margin: 30px auto;
+            }
+
+            .section-heading {
+                font-size: 1.6rem;
+            }
+
+            .button {
+                padding: 14px 28px;
+                font-size: 15px;
+                margin: 6px 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .container, .pyldavis-container {
+                padding: 25px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <a href="{{ url_for('index') }}" class="navbar-logo">Review App</a>
+    <ul class="navbar-menu">
+        <li><a href="{{ url_for('index') }}">index</a></li>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">Visualisasi</a></li>
+        <li><a href="#">Tentang</a></li>
+        <li><a href="#">Kontak</a></li>
+    </ul>
+    <div class="navbar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+</nav>
+
+<!-- Hero Section -->
+<section class="hero" style="background-image: url('{{ url_for('static', filename='banners/' + app_name + '.webp') }}'); background-size: cover; background-position: center;">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+        <h1 class="hero-title">
+            <img src="{{ url_for('static', filename='icons/' + app_name + '.webp') }}" alt="{{ app_name }}" class="app-icon">
+            {{ app_name.replace('-', ' ').title() }}
+        </h1>
+        <p class="hero-description">Visualisasi LDA Topic Modeling untuk Analisis Review Aplikasi</p>
+    </div>
+</section>
+
+<!-- Main Content -->
+<div class="main-content">
+    <div class="container">
+        <!-- Data Review -->
+        <h3 class="section-heading">Hasil Scraping Review</h3>
+        {% if not model_available %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> Model LDA belum tersedia untuk aplikasi ini.
+        </div>
+        {% endif %}
+
+        <div class="data-preview data-table-wrapper">
+            <h4>5 Review Teratas:</h4>
+            {{ head_html | safe }}
+        </div>
+        <div class="data-preview data-table-wrapper">
+            <h4>5 Review Terbawah:</h4>
+            {{ tail_html | safe }}
+        </div>
+
+        <!-- Topik -->
+        {% if topic_summary %}
+        <div class="data-preview">
+            <h3 class="section-heading">Topik yang Ditemukan</h3>
+            <pre>{{ topic_summary | safe }}</pre>
+        </div>
+        {% endif %}
+        
+        {% if coherence_score is not none %}
+        <p>Coherence Score: {{ coherence_score | round(4) }}</p>
+        {% else %}
+        <p><i class="fas fa-exclamation-triangle"></i> Coherence score belum tersedia.</p>
+        {% endif %}
+
+        <!-- Tombol dan Progress -->
+        <div class="model-section">
+            <button class="button" id="train-btn" onclick="trainLDA()">
+                <i class="fas fa-brain"></i> Training {% if model_data %}Ulang{% else %}Sekarang{% endif %}
+            </button>
+            <button class="button" id="cancel-btn" style="display: none;" onclick="cancelTraining()">
+                <i class="fas fa-times"></i> Batalkan
+            </button>
+
+            <div id="progress-container">
+                <div id="progress-bar"><div id="progress-fill"></div></div>
+                <div id="progress-text">Status: Idle</div>
+                <div class="loading-wave" id="loading-animation" style="display: none;">
+                    <div class="loading-bar"></div>
+                    <div class="loading-bar"></div>
+                    <div class="loading-bar"></div>
+                    <div class="loading-bar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PyLDAvis diletakkan di luar container -->
+    {% if model_data %}
+    <div class="pyldavis-container">
+        <h3 class="pyldavis-heading">Visualisasi Interaktif Topik</h3>
+        <div style="width: 100%; overflow-x: auto;">
+            {{ vis | safe }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Script -->
+<script>
+let interval;
+
+function trainLDA() {
+    document.getElementById("train-btn").disabled = true;
+    document.getElementById("cancel-btn").style.display = "inline";
+    document.getElementById("loading-animation").style.display = "flex";
+
+    fetch("", { method: "POST" });
+
+    interval = setInterval(() => {
+        fetch("/progress")
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("progress-fill").style.width = data.percent + "%";
+                document.getElementById("progress-text").innerText = data.description + " (" + data.percent + "%)";
+                
+                if (data.percent >= 100 || data.description.includes("Dibatalkan")) {
+                    clearInterval(interval);
+                    document.getElementById("cancel-btn").style.display = "none";
+                    document.getElementById("loading-animation").style.display = "none";
+                    document.getElementById("train-btn").disabled = false;
+                    
+                    if (data.percent >= 100) {
+                        document.getElementById("progress-text").innerText = "Training selesai. Memuat ulang...";
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching progress:", err);
+            });
+    }, 1000);
+}
+
+function cancelTraining() {
+    fetch("/cancel-training", { method: "POST" });
+}
+
+// Toggle menu for mobile
+document.addEventListener('DOMContentLoaded', function() {
+    const menuToggle = document.querySelector('.navbar-toggle');
+    const menu = document.querySelector('.navbar-menu');
+    
+    menuToggle.addEventListener('click', function() {
+        menu.classList.toggle('active');
+        menuToggle.innerHTML = menu.classList.contains('active') ? 
+            '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
+    });
+
+    // Scroll effect for navbar
+    window.addEventListener('scroll', function() {
+        const navbar = document.querySelector('.navbar');
+        if (window.scrollY > 100) {
+            navbar.style.background = 'rgba(255, 255, 255, 0.15)';
+            navbar.style.backdropFilter = 'blur(25px)';
+        } else {
+            navbar.style.background = 'rgba(255, 255, 255, 0.1)';
+            navbar.style.backdropFilter = 'blur(20px)';
+        }
+    });
+
+    // Add smooth scrolling
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+});
+</script>
+
+</body>
+</html>

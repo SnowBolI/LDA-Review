@@ -1,0 +1,12 @@
+{
+  "app_name": "amazon",
+  "created_at": "2025-06-18T19:59:06.936329",
+  "chart_data_size": 7731,
+  "analysis_sections": [
+    "topic_distribution",
+    "topic_coherence",
+    "topic_words",
+    "doc_topic_matrix",
+    "overall_summary"
+  ]
+}

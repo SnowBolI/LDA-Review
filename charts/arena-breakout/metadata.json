@@ -1,0 +1,12 @@
+{
+  "app_name": "arena-breakout",
+  "created_at": "2025-06-19T20:55:35.198361",
+  "chart_data_size": 7269,
+  "analysis_sections": [
+    "topic_distribution",
+    "topic_coherence",
+    "topic_words",
+    "doc_topic_matrix",
+    "overall_summary"
+  ]
+}

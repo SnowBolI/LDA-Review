@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDA - {{ app_name }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+    const APP_NAME = "{{ app_name }}";
+    console.log("Loaded APP_NAME =", APP_NAME);
+  </script>
+    <script src="{{ url_for('static', filename='js/lda.js') }}"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            color: #1a202c;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.05"><circle cx="7" cy="7" r="3"/><circle cx="53" cy="53" r="3"/><circle cx="7" cy="53" r="3"/><circle cx="53" cy="7" r="3"/></g></g></svg>') repeat;
+            z-index: -1;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 16px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+            /* transparan hitam */
+            backdrop-filter: blur(10px);
+            /* efek kaca */
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.1rem;
+            z-index: 1000;
+            transition: top 0.3s ease, background 0.3s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .navbar.scrolled {
+            background: rgba(0, 0, 0, 0.7);
+            /* lebih solid saat scroll */
+            backdrop-filter: blur(12px);
+        }
+
+
+        .navbar-logo {
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+            text-decoration: none;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .navbar-menu {
+            display: flex;
+            list-style: none;
+            gap: 30px;
+        }
+
+        .navbar-menu a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            padding: 8px 16px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-menu a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .navbar-toggle {
+            display: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: #fff;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 50vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 0 20px;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+            z-index: 1;
+        }
+
+        .hero-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: 2;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 3;
+            max-width: 900px;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            animation: fadeInUp 1s ease;
+            font-weight: 700;
+            letter-spacing: -1px;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-description {
+            font-size: 1.4rem;
+            opacity: 0.95;
+            margin-bottom: 40px;
+            animation: fadeInUp 1s ease 0.2s;
+            animation-fill-mode: both;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .app-icon {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            border-radius: 24px;
+            margin: 0 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            vertical-align: middle;
+            animation: fadeInUp 1s ease 0.1s, float 3s ease-in-out infinite;
+            animation-fill-mode: both;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 40px;
+            padding: 0 20px;
+            position: relative;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            animation: fadeIn 0.8s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .section-heading {
+            font-size: 2rem;
+            color: #2d3748;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .section-heading::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .data-preview {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            border: 1px solid rgba(203, 213, 225, 0.5);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .data-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 80% 20%, rgba(102, 126, 234, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .data-preview h4 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 20px 25px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 500;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            border: 1px solid #f6d55c;
+        }
+
+        .alert i {
+            font-size: 1.2em;
+        }
+
+        /* Buttons and Progress */
+        .model-section {
+            margin: 40px 0;
+            text-align: center;
+        }
+
+        .button {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 8px 12px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .button:hover::before {
+            left: 100%;
+        }
+
+        .button:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        .button:disabled {
+            background: linear-gradient(135deg, #cbd5e0, #e2e8f0);
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+            color: #a0aec0;
+        }
+
+        #cancel-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+
+        #cancel-btn:hover {
+            box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
+        }
+
+        #progress-container {
+            margin: 30px auto;
+            max-width: 700px;
+        }
+
+        #progress-bar {
+            background: rgba(203, 213, 225, 0.5);
+            height: 16px;
+            width: 100%;
+            border-radius: 100px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        #progress-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 100px;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+            position: relative;
+        }
+
+        #progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        #progress-text {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 16px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        /* PyLDAvis container */
+        .pyldavis-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            overflow-x: auto;
+            animation: fadeIn 0.8s ease 0.3s;
+            animation-fill-mode: both;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .pyldavis-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .pyldavis-heading {
+            text-align: center;
+            color: #2d3748;
+            font-size: 2rem;
+            margin: 15px 0 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .pyldavis-heading::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        th,
+        td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            background: rgba(255, 255, 255, 0.8);
+            transition: background-color 0.3s ease;
+        }
+
+        tr:hover td {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .data-table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 30px;
+            justify-content: center;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            */
+        }
+
+        .data-table-wrapper table {
+            width: auto;
+            /* Mengatur lebar tabel otomatis */
+            justify-content: center;
+            max-width: 100%;
+            /* Maksimal lebar 100% dari kontainer */
+            border-collapse: collapse;
+            /* Menghilangkan jarak antar sel */
+        }
+
+        .data-table-wrapper th,
+        .data-table-wrapper td {
+            white-space: nowrap;
+            padding: 12px 16px;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+
+        /* Loading Animation */
+        .loading-wave {
+            width: 60px;
+            height: 60px;
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .loading-bar {
+            width: 8px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            animation: wave 1.2s ease-in-out infinite;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .loading-bar:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .loading-bar:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-bar:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            100% {
+                height: 20px;
+                opacity: 0.7;
+            }
+
+            50% {
+                height: 50px;
+                opacity: 1;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 15px 20px;
+            }
+
+            .navbar-menu {
+                position: fixed;
+                top: 0;
+                right: -100%;
+                width: 80%;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.95);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                transition: right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                gap: 20px;
+            }
+
+            .navbar-menu.active {
+                right: 0;
+            }
+
+            .navbar-menu a {
+                font-size: 18px;
+                padding: 12px 24px;
+            }
+
+            .navbar-toggle {
+                display: block;
+                z-index: 1001;
+            }
+
+            .hero {
+                height: 40vh;
+                padding-top: 80px;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-description {
+                font-size: 1.1rem;
+            }
+
+            .app-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .container,
+            .pyldavis-container {
+                padding: 30px 20px;
+                margin: 30px auto;
+            }
+
+            .section-heading {
+                font-size: 1.6rem;
+            }
+
+            .button {
+                padding: 14px 28px;
+                font-size: 15px;
+                margin: 6px 8px;
+            }
+
+            .data-table-wrapper table {
+                width: 100%;
+                /* Tabel mengambil 100% lebar pada perangkat kecil */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .container,
+            .pyldavis-container {
+                padding: 25px 15px;
+            }
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-x: auto;
+        }
+
+        .data-preview {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            table-layout: auto;
+        }
+
+        @media (max-width: 768px) {
+            pre {
+                font-size: 13px;
+            }
+
+            .data-preview {
+                padding: 20px 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            pre {
+                font-size: 12px;
+            }
+        }
+
+        .data-preview,
+        .data-preview pre,
+        .data-preview table,
+        .data-preview td {
+            word-break: break-word;
+            white-space: normal;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+                max-width: 100%;
+                padding: 20px 15px;
+                overflow-x: auto;
+            }
+        }
+
+        .chartjs-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            animation: fadeIn 0.8s ease 0.3s;
+            animation-fill-mode: both;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .chartjs-heading {
+            text-align: center;
+            color: #2d3748;
+            font-size: 2rem;
+            margin: 15px 0 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid transparent;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .chartjs-heading::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .topic-selector {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .topic-btn {
+            background-color: #667eea;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            padding: 8px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        .topic-btn:hover,
+        .topic-btn.active {
+            background-color: #764ba2;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            min-height: 400px;
+            /* Changed from fixed height */
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-item canvas {
+            flex: 1;
+            max-height: 300px;
+            /* Reduced to make room for analysis */
+            min-height: 250px;
+        }
+
+        .chart-item h4 {
+            margin-bottom: 15px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .full-width-chart {
+            margin: 30px 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 25px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            min-height: 500px;
+            /* Changed from fixed height */
+        }
+
+        .full-width-chart canvas {
+            height: 350px !important;
+            /* Reduced height */
+            max-height: 350px;
+        }
+
+        .doc-topic-container {
+            margin: 30px 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 25px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            min-height: 600px;
+            /* Changed from fixed height */
+        }
+
+        .doc-topic-container canvas {
+            height: 400px !important;
+            /* Reduced height */
+            max-height: 400px;
+        }
+
+        /* Chart Analysis positioned directly below charts */
+        /* Ganti bagian CSS mulai dari line sekitar 900-1200 (bagian chart analysis) */
+
+        /* Chart Analysis positioned directly below charts */
+        .chart-analysis {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-top: 20px;
+            border: 1px solid rgba(203, 213, 225, 0.5);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-analysis::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 80% 20%, rgba(102, 126, 234, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .chart-analysis h5 {
+            color: #2d3748;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .chart-analysis h5 i {
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .chart-analysis p {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+
+        .chart-analysis ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 15px 0;
+        }
+
+        .chart-analysis li {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+            font-size: 15px;
+        }
+
+        .chart-analysis li::before {
+            content: '•';
+            color: #667eea;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.2em;
+        }
+
+        .chart-analysis strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .chart-analysis em {
+            color: #718096;
+            font-style: italic;
+            font-size: 14px;
+            display: block;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        /* Overall Summary with different styling */
+        .overall-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white;
+            margin-top: 40px;
+        }
+
+        .overall-summary::before {
+            background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%) !important;
+        }
+
+        .overall-summary h4,
+        .overall-summary h5 {
+            color: white !important;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: none !important;
+            -webkit-text-fill-color: white !important;
+        }
+
+        .overall-summary h4 i,
+        .overall-summary h5 i {
+            color: #f093fb !important;
+            font-size: 1.3rem;
+        }
+
+        .overall-summary p {
+            color: rgba(255, 255, 255, 0.9) !important;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 15px;
+        }
+
+        .overall-summary li {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-size: 15px;
+            padding-left: 20px;
+        }
+
+        .overall-summary li::before {
+            color: #f093fb !important;
+        }
+
+        .overall-summary strong {
+            color: white !important;
+            font-weight: 600;
+        }
+
+        .overall-summary em {
+            color: rgba(255, 255, 255, 0.8) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+            font-size: 14px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .summary-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .summary-item h6 {
+            color: #f093fb;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-item p {
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .summary-item strong {
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Responsive untuk analisis teks */
+        @media (max-width: 768px) {
+            .chart-analysis {
+                padding: 15px 20px;
+                margin: 15px 0;
+            }
+
+            .chart-analysis h5 {
+                font-size: 1.1rem;
+            }
+
+            .chart-analysis p,
+            .chart-analysis li {
+                font-size: 14px;
+            }
+
+            .overall-summary h4,
+            .overall-summary h5 {
+                font-size: 1.3rem;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .summary-item {
+                padding: 15px;
+            }
+        }
+
+        .coherence-wrapper {
+            text-align: center;
+            margin-top: 20px;
+            /* opsional, untuk spasi atas */
+        }
+
+        .training-status {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .training-status.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+        }
+
+        .training-status h4 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+        }
+
+        .training-status p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        .session-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px;
+            border-radius: 5px;
+            margin-top: 8px;
+        }
+
+        .status-icon {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="{{ url_for('index') }}" class="navbar-logo">Review App</a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero"
+        style="background-image: url('{{ url_for('static', filename='banners/' + app_name + '.webp') }}'); background-size: cover; background-position: center;">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1 class="hero-title">
+                <img src="{{ url_for('static', filename='icons/' + app_name + '.webp') }}" alt="{{ app_name }}"
+                    class="app-icon">
+                {{ app_name.replace('-', ' ').title() }}
+            </h1>
+            <p class="hero-description">Visualisasi LDA Topic Modeling untuk Analisis Review Aplikasi</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <div id="training-status-container" style="display: none;">
+            <!-- Status akan diisi oleh JavaScript -->
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <!-- Data Review -->
+            <h3 class="section-heading">Hasil Scraping Review</h3>
+            {% if not model_available %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> Model LDA belum tersedia untuk aplikasi ini.
+            </div>
+            {% endif %}
+
+            <div class="data-preview data-table-wrapper">
+                <h4>5 Review Teratas:</h4>
+                {{ head_html | safe }}
+            </div>
+            <div class="data-preview data-table-wrapper">
+                <h4>5 Review Terbawah:</h4>
+                {{ tail_html | safe }}
+            </div>
+
+            <!-- Topik -->
+            {% if topic_summary %}
+            <div class="data-preview data-table-wrapper">
+                <h3 class="section-heading">Topik yang Ditemukan</h3>
+                <pre>{{ topic_summary | safe }}</pre>
+            </div>
+            {% endif %}
+
+            {% if coherence_score is not none %}
+            <div class="coherence-wrapper">
+                <p>Coherence Score: {{ coherence_score | round(4) }}</p>
+            </div>
+            {% else %}
+            <p><i class="fas fa-exclamation-triangle"></i> Coherence score belum tersedia.</p>
+            {% endif %}
+
+            <!-- Tombol dan Progress -->
+            <div class="model-section">
+                <button class="button" id="train-btn" onclick="trainLDA()">
+                    <i class="fas fa-brain"></i> Training {% if model_data %}Ulang{% else %}Sekarang{% endif %}
+                </button>
+                <button class="button" id="cancel-btn" style="display: none;" onclick="cancelTraining()">
+                    <i class="fas fa-times"></i> Batalkan
+                </button>
+
+                <div id="progress-container">
+                    <div id="progress-bar">
+                        <div id="progress-fill"></div>
+                    </div>
+                    <div id="progress-text">Status: Idle</div>
+                    <div class="loading-wave" id="loading-animation" style="display: none;">
+                        <div class="loading-bar"></div>
+                        <div class="loading-bar"></div>
+                        <div class="loading-bar"></div>
+                        <div class="loading-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if model_available %}
+        <div class="pyldavis-container mt-5">
+            <h3 class="pyldavis-heading">Visualisasi Interaktif Topik</h3>
+            <div style="width: 100%; overflow-x: auto;">
+                {{ vis | safe }}
+            </div>
+        </div>
+        {% else %}
+        <p><i class="fas fa-exclamation-triangle"></i></p>
+        {% endif %}
+
+        {% if model_available and chart_data %}
+        <!-- Chart.js Visualizations -->
+        <div class="chartjs-container">
+            <h2 class="chartjs-heading">Visualisasi Data Topik</h2>
+
+            <div class="chart-grid">
+                <!-- Topic Distribution Chart -->
+                <div class="chart-item">
+                    <h4>Distribusi Topik</h4>
+                    <canvas id="topicDistributionChart"></canvas>
+                    <!-- Analisis Distribusi Topik -->
+                    {% if chart_analysis and chart_analysis.topic_distribution %}
+                    <div class="chart-analysis">
+                        {{ chart_analysis.topic_distribution | safe }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Topic Coherence Chart -->
+                <div class="chart-item">
+                    <h4>Skor Koherensi Topik</h4>
+                    <canvas id="topicCoherenceChart"></canvas>
+                    <!-- Analisis Koherensi Topik -->
+                    {% if chart_analysis and chart_analysis.topic_coherence %}
+                    <div class="chart-analysis">
+                        {{ chart_analysis.topic_coherence | safe }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Topic Words Chart -->
+            <div class="full-width-chart">
+                <h4>Kata-kata dalam Topik</h4>
+                <div class="topic-selector" id="topicSelector"></div>
+                <canvas id="topicWordsChart"></canvas>
+                <!-- Analisis Kata-kata Topik -->
+                {% if chart_analysis and chart_analysis.topic_words %}
+                <div class="chart-analysis">
+                    {{ chart_analysis.topic_words | safe }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Document-Topic Matrix -->
+            <div class="doc-topic-container">
+                <h4>Matriks Dokumen-Topik (50 Dokumen Pertama)</h4>
+                <canvas id="docTopicChart"></canvas>
+                <!-- Analisis Matriks Dokumen-Topik -->
+                {% if chart_analysis and chart_analysis.doc_topic_matrix %}
+                <div class="chart-analysis">
+                    {{ chart_analysis.doc_topic_matrix | safe }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Ringkasan Keseluruhan -->
+            {% if chart_analysis and chart_analysis.overall_summary %}
+            <div class="overall-summary chart-analysis">
+                {{ chart_analysis.overall_summary | safe }}
+            </div>
+            {% endif %}
+        </div>
+        <script>
+            // Chart.js configuration
+            Chart.defaults.font.family = 'Inter, sans-serif';
+            Chart.defaults.color = '#4a5568';
+            Chart.defaults.plugins.legend.labels.usePointStyle = true;
+
+            // Color palette
+            const colors = [
+                '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe',
+                '#43e97b', '#fa709a', '#fee140', '#a8edea', '#d299c2'
+            ];
+
+            // Chart data from Flask
+            const chartData = {{ chart_data | tojson | safe }};
+
+            // Initialize charts only if data exists
+            if (chartData && Object.keys(chartData).length > 0) {
+
+                // 1. Topic Distribution Chart
+                const topicDistCtx = document.getElementById('topicDistributionChart');
+                if (topicDistCtx && chartData.topic_distribution) {
+                    new Chart(topicDistCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: chartData.topic_distribution.labels,
+                            datasets: [{
+                                data: chartData.topic_distribution.data,
+                                backgroundColor: colors.slice(0, chartData.topic_distribution.labels.length),
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 20,
+                                        font: { size: 12 }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                            return context.label + ': ' + percentage + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 2. Topic Coherence Chart
+                const coherenceCtx = document.getElementById('topicCoherenceChart');
+                if (coherenceCtx && chartData.topic_coherence) {
+                    new Chart(coherenceCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: chartData.topic_coherence.labels,
+                            datasets: [{
+                                label: 'Skor Koherensi',
+                                data: chartData.topic_coherence.data,
+                                backgroundColor: colors.slice(0, chartData.topic_coherence.labels.length),
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(0,0,0,0.1)' }
+                                },
+                                x: {
+                                    grid: { display: false }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 3. Topic Words Chart
+                let currentTopicIndex = 0;
+                const topicWordsCtx = document.getElementById('topicWordsChart');
+                let topicWordsChart;
+
+                function createTopicWordsChart(topicIndex) {
+                    if (topicWordsChart) {
+                        topicWordsChart.destroy();
+                    }
+
+                    if (!chartData.topics_words || !chartData.topics_words[topicIndex]) {
+                        return;
+                    }
+
+                    const topicData = chartData.topics_words[topicIndex];
+
+                    topicWordsChart = new Chart(topicWordsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: topicData.words,
+                            datasets: [{
+                                label: 'Probabilitas Kata',
+                                data: topicData.probabilities,
+                                backgroundColor: colors[topicIndex % colors.length],
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y',
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(0,0,0,0.1)' }
+                                },
+                                y: {
+                                    grid: { display: false }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Create topic selector buttons
+                const topicSelector = document.getElementById('topicSelector');
+                if (topicSelector && chartData.topics_words) {
+                    topicSelector.innerHTML = ''; // Clear existing buttons
+                    chartData.topics_words.forEach((topic, index) => {
+                        const button = document.createElement('button');
+                        button.className = 'topic-btn' + (index === 0 ? ' active' : '');
+                        button.textContent = `Topik ${index + 1}`;
+                        button.onclick = () => {
+                            document.querySelectorAll('.topic-btn').forEach(btn => btn.classList.remove('active'));
+                            button.classList.add('active');
+                            createTopicWordsChart(index);
+                            currentTopicIndex = index;
+                        };
+                        topicSelector.appendChild(button);
+                    });
+
+                    // Initialize first topic words chart
+                    if (topicWordsCtx) {
+                        createTopicWordsChart(0);
+                    }
+                }
+
+                // 4. Document-Topic Matrix Chart - FIXED VERSION
+                const docTopicCtx = document.getElementById('docTopicChart');
+                if (docTopicCtx && chartData.doc_topic_matrix && chartData.doc_topic_matrix.length > 0) {
+                    console.log('Creating document-topic matrix chart...');
+                    console.log('Matrix data sample:', chartData.doc_topic_matrix.slice(0, 3));
+
+                    // Method 1: Scatter plot approach (original but improved)
+                    const matrixData = [];
+                    chartData.doc_topic_matrix.forEach((docTopics, docIndex) => {
+                        docTopics.forEach((probability, topicIndex) => {
+                            if (probability > 0.01) {
+                                matrixData.push({
+                                    x: docIndex,
+                                    y: probability,
+                                    topicIndex: topicIndex,
+                                    docIndex: docIndex,
+                                    probability: probability
+                                });
+                            }
+                        });
+                    });
+
+                    console.log('Matrix scatter data points:', matrixData.length);
+
+                    if (matrixData.length > 0) {
+                        // Group data by topic for better visualization
+                        const datasets = [];
+                        for (let topicIndex = 0; topicIndex < (chartData.topics_words ? chartData.topics_words.length : 5); topicIndex++) {
+                            const topicData = matrixData.filter(point => point.topicIndex === topicIndex);
+
+                            if (topicData.length > 0) {
+                                datasets.push({
+                                    label: `Topik ${topicIndex + 1}`,
+                                    data: topicData,
+                                    backgroundColor: colors[topicIndex % colors.length],
+                                    borderColor: colors[topicIndex % colors.length],
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6
+                                });
+                            }
+                        }
+
+                        new Chart(docTopicCtx, {
+                            type: 'scatter',
+                            data: { datasets: datasets },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        position: 'top',
+                                        labels: {
+                                            usePointStyle: true,
+                                            padding: 15
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function (context) {
+                                                const point = context[0].raw;
+                                                return `Dokumen ${point.docIndex + 1}`;
+                                            },
+                                            label: function (context) {
+                                                const point = context.raw;
+                                                return `${context.dataset.label}: ${(point.probability * 100).toFixed(1)}%`;
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        type: 'linear',
+                                        position: 'bottom',
+                                        title: {
+                                            display: true,
+                                            text: 'Indeks Dokumen',
+                                            font: { size: 14, weight: 'bold' }
+                                        },
+                                        min: 0,
+                                        max: Math.min(49, chartData.doc_topic_matrix.length - 1),
+                                        ticks: {
+                                            stepSize: 5,
+                                            callback: function (value) {
+                                                return Math.round(value) + 1;
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Probabilitas Topik',
+                                            font: { size: 14, weight: 'bold' }
+                                        },
+                                        min: 0,
+                                        max: 1,
+                                        ticks: {
+                                            stepSize: 0.2,
+                                            callback: function (value) {
+                                                return (value * 100).toFixed(0) + '%';
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // If no data points, show message
+                        docTopicCtx.getContext('2d').fillText('Tidak ada data untuk ditampilkan', 50, 50);
+                    }
+                } else {
+                    console.log('Document-topic matrix data not available or empty');
+                }
+
+            } else {
+                console.warn('Chart data not available or empty');
+                console.log('Available chartData:', chartData);
+            }
+        </script>
+        {% endif %}
+
+
+    </div>
+    <!-- Script -->
+    <script>
+let interval;
+let statusInterval;
+let trainingInProgress = false; // 🔐 Flag untuk mendeteksi apakah sedang training
+
+
+// Check training status on page load
+document.addEventListener('DOMContentLoaded', function () {
+    // Initialize page elements first
+    initializePage();
+    
+    // Then check training status
+    checkTrainingStatus();
+    
+    // Check status every 30 seconds
+    statusInterval = setInterval(checkTrainingStatus, 30000);
+    
+    // Initialize other UI components
+    initializeUI();
+});
+
+function initializePage() {
+    // Check if required elements exist
+    const requiredElements = [
+        'training-status-container',
+        'train-btn',
+        'cancel-btn',
+        'loading-animation',
+        'progress-fill',
+        'progress-text'
+    ];
+    
+    requiredElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (!element) {
+            console.warn(`Element with id '${id}' not found in HTML`);
+        }
+    });
+}
+
+function checkTrainingStatus() {
+    fetch("/training-status")
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            console.log("Training status data:", data);
+            updateTrainingStatusDisplay(data);
+        })
+        .catch(err => {
+            console.error("Error fetching training status:", err);
+            // Show fallback UI when status check fails
+            showFallbackStatus();
+        });
+}
+
+function showFallbackStatus() {
+    const container = document.getElementById("training-status-container");
+    const trainBtn = document.getElementById("train-btn");
+    
+    if (container) {
+        container.style.display = "block";
+        container.innerHTML = `
+            <div class="training-status warning">
+                <h4><i class="fas fa-exclamation-triangle status-icon"></i>Status Training Tidak Tersedia</h4>
+                <p>Tidak dapat mengecek status training. Server mungkin belum siap.</p>
+                <p><em>Coba refresh halaman atau cek koneksi internet Anda.</em></p>
+            </div>
+        `;
+    }
+    
+    if (trainBtn) {
+        trainBtn.disabled = true;
+        trainBtn.innerHTML = '<i class="fas fa-brain"></i> Training Sekarang';
+    }
+}
+
+function updateTrainingStatusDisplay(data) {
+    const container = document.getElementById("training-status-container");
+    const trainBtn = document.getElementById("train-btn");
+
+    if (!container) {
+        console.error("training-status-container not found");
+        return;
+    }
+
+    if (data.active_sessions > 0) {
+        container.style.display = "block";
+
+        let statusClass = data.can_train ? "training-status" : "training-status warning";
+        let statusIcon = data.can_train ? "fa-info-circle" : "fa-exclamation-triangle";
+        let statusTitle = data.can_train ? "Informasi Training" : "Training Sedang Berlangsung";
+
+        let sessionsHtml = "";
+        if (data.sessions && data.sessions.length > 0) {
+            sessionsHtml = "<div class='session-info'><strong>Sesi Aktif:</strong><br>";
+            data.sessions.forEach(session => {
+                sessionsHtml += `• ${session.app_name.replace('-', ' ').toUpperCase()} (dimulai ${session.start_time}, durasi ${session.duration})<br>`;
+            });
+            sessionsHtml += "</div>";
+        }
+
+        container.innerHTML = `
+            <div class="${statusClass}">
+                <h4><i class="fas ${statusIcon} status-icon"></i>${statusTitle}</h4>
+                <p><strong>Sesi Training Aktif:</strong> ${data.active_sessions} dari ${data.max_sessions} maksimal</p>
+                ${!data.can_train ? '<p><strong>⚠️ Tidak dapat memulai training baru saat ini. Silakan tunggu hingga ada sesi yang selesai.</strong></p>' : ''}
+                ${sessionsHtml}
+                <p><em>Status akan diperbarui otomatis setiap 30 detik</em></p>
+            </div>
+        `;
+
+        // Disable training button if can't train
+        if (trainBtn && !trainingInProgress) {
+            trainBtn.disabled = !data.can_train;
+            if (!data.can_train) {
+                trainBtn.innerHTML = '<i class="fas fa-clock"></i> Tunggu Sesi Lain Selesai';
+            } else {
+                trainBtn.innerHTML = '<i class="fas fa-brain"></i> Training Sekarang';
+            }
+        }
+    } else {
+        container.style.display = "none";
+        if (trainBtn) {
+            trainBtn.disabled = false;
+            trainBtn.innerHTML = '<i class="fas fa-brain"></i> Training Sekarang';
+        }
+    }
+}
+
+function trainLDA() {
+    const trainBtn = document.getElementById("train-btn");
+
+    if (trainingInProgress) return; // ⛔ Jangan lanjut jika sedang training
+    trainingInProgress = true;      // ✅ Tandai sedang training
+
+    if (trainBtn) trainBtn.disabled = true;
+
+    // Check status before training
+    fetch("/training-status")
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (!data.can_train) {
+                alert(`Tidak dapat memulai training: Maksimal ${data.max_sessions} training bersamaan. Saat ini ada ${data.active_sessions} sesi aktif.`);
+                trainingInProgress = false; // reset jika gagal
+                if (trainBtn) trainBtn.disabled = false;
+                return;
+            }
+
+            // Proceed with training
+            startTraining();
+        })
+        .catch(err => {
+            console.error("Error checking training status:", err);
+            if (confirm("Tidak dapat memeriksa status training. Lanjutkan training?")) {
+                startTraining();
+            } else {
+                trainingInProgress = false; // reset jika user batal
+                if (trainBtn) trainBtn.disabled = false;
+            }
+        });
+}
+
+function startTraining() {
+  const trainBtn = document.getElementById("train-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const loadingAnimation = document.getElementById("loading-animation");
+  const progressText = document.getElementById("progress-text");
+
+  if (trainBtn) trainBtn.disabled = true;
+  if (cancelBtn) cancelBtn.style.display = "inline";
+  if (loadingAnimation) loadingAnimation.style.display = "flex";
+  if (progressText) progressText.innerText = "Memulai training...";
+
+    fetch(`/lda/{{ app_name }}`, { method: "POST" })
+    .then(res => {
+console.log("Training request sent to:", `/lda/{{ app_name }}`, "status:", res.status);
+
+      if (!res.ok) {
+        return res.json().then(d => { throw new Error(d.message); });
+      }
+      return res.json();
+    })
+    .then(data => {
+      console.log("Training response:", data);
+      if (data.status === "error") {
+        alert("Error: " + data.message);
+        resetTrainingUI();
+        return;
+      }
+console.log("Starting progress monitoring for", "{{ app_name }}");
+
+      monitorProgress();
+    })
+    .catch(err => {
+      console.error("Error starting training:", err);
+      alert("Error memulai training: " + err.message);
+      resetTrainingUI();
+    });
+}
+
+
+function monitorProgress() {
+    let consecutiveErrors = 0;
+    const maxErrors = 5;
+    
+    interval = setInterval(() => {
+fetch("/progress/{{ app_name }}")
+
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
+            .then(data => {
+                consecutiveErrors = 0; // Reset error counter
+                
+                const progressFill = document.getElementById("progress-fill");
+                const progressText = document.getElementById("progress-text");
+                
+                console.log("Progress data:", data); // Debug log
+                
+                if (progressFill) {
+                    progressFill.style.width = data.percent + "%";
+                    progressFill.style.transition = "width 0.3s ease";
+                }
+                if (progressText) {
+                    progressText.innerText = data.description + " (" + data.percent + "%)";
+                }
+
+                // Check if training is complete
+                if (data.percent >= 100) {
+                    console.log("Training completed!");
+                    clearInterval(interval);
+                    resetTrainingUI();
+                    
+                    if (progressText) {
+                        progressText.innerText = "Training selesai. Memuat ulang dalam 3 detik...";
+                    }
+                    
+                    setTimeout(() => {
+                        console.log("Reloading page...");
+                        location.reload();
+                    }, 3000);
+                    
+                    setTimeout(checkTrainingStatus, 2000);
+                }
+                
+                // Check if training was cancelled
+                if (data.description && data.description.toLowerCase().includes("dibatalkan")) {
+                    console.log("Training cancelled!");
+                    clearInterval(interval);
+                    resetTrainingUI();
+                    setTimeout(checkTrainingStatus, 2000);
+                }
+            })
+            .catch(err => {
+                consecutiveErrors++;
+                console.error(`Error fetching progress (${consecutiveErrors}/${maxErrors}):`, err);
+                
+                // Stop monitoring if too many consecutive errors
+                if (consecutiveErrors >= maxErrors) {
+                    console.error("Too many errors, stopping progress monitoring");
+                    clearInterval(interval);
+                    resetTrainingUI();
+                    
+                    const progressText = document.getElementById("progress-text");
+                    if (progressText) {
+                        progressText.innerText = "Error monitoring progress. Refresh halaman untuk melihat hasil.";
+                    }
+                }
+            });
+    }, 2000); // Increase interval to 2 seconds to reduce load
+}
+
+function resetTrainingUI() {
+    const trainBtn = document.getElementById("train-btn");
+    const cancelBtn = document.getElementById("cancel-btn");
+    const loadingAnimation = document.getElementById("loading-animation");
+
+    if (cancelBtn) cancelBtn.style.display = "none";
+    if (loadingAnimation) loadingAnimation.style.display = "none";
+
+    trainingInProgress = false; // ✅ Training sudah selesai
+
+    if (trainBtn) {
+        trainBtn.disabled = false;
+        trainBtn.innerHTML = '<i class="fas fa-brain"></i> Training Sekarang';
+    }
+}
+
+function cancelTraining() {
+    fetch("/cancel-training", { method: "POST" })
+        .then(res => {
+            console.log("Training cancelled");
+            // Refresh status after cancelling
+            setTimeout(checkTrainingStatus, 1000);
+        })
+        .catch(err => {
+            console.error("Error cancelling training:", err);
+        });
+}
+
+function initializeUI() {
+    // Toggle menu for mobile
+    const menuToggle = document.querySelector('.navbar-toggle');
+    const menu = document.querySelector('.navbar-menu');
+
+    if (menuToggle && menu) {
+        menuToggle.addEventListener('click', function () {
+            menu.classList.toggle('active');
+            menuToggle.innerHTML = menu.classList.contains('active') ?
+                '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
+        });
+    }
+
+    // Scroll effect for navbar
+    const navbar = document.querySelector('.navbar');
+    if (navbar) {
+        let lastScrollTop = 0;
+        
+        window.addEventListener('scroll', function () {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Hide/show navbar on scroll
+            if (scrollTop > lastScrollTop && scrollTop > 100) {
+                navbar.style.top = "-80px";
+            } else {
+                navbar.style.top = "0";
+            }
+            
+            // Change navbar background on scroll
+            if (scrollTop > 100) {
+                navbar.style.background = 'rgba(255, 255, 255, 0.15)';
+                navbar.style.backdropFilter = 'blur(25px)';
+            } else {
+                navbar.style.background = 'rgba(255, 255, 255, 0.1)';
+                navbar.style.backdropFilter = 'blur(20px)';
+            }
+            
+            lastScrollTop = scrollTop;
+        });
+    }
+
+    // Add smooth scrolling
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth'
+                });
+            }
+        });
+    });
+}
+
+// Clear intervals when page unloads
+window.addEventListener('beforeunload', function () {
+    if (statusInterval) {
+        clearInterval(statusInterval);
+    }
+    if (interval) {
+        clearInterval(interval);
+    }
+});
+
+// Debug function to check page state
+function debugPageState() {
+    console.log("=== DEBUG PAGE STATE ===");
+    console.log("URL:", window.location.href);
+    console.log("Training status container:", document.getElementById("training-status-container"));
+    console.log("Train button:", document.getElementById("train-btn"));
+    console.log("Model data available:", typeof model_data !== 'undefined' ? true : false);
+    console.log("========================");
+}
+
+// Call debug function after page loads
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(debugPageState, 2000);
+});
+</script>
+
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

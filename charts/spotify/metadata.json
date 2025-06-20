@@ -1,0 +1,12 @@
+{
+  "app_name": "spotify",
+  "created_at": "2025-06-19T22:36:01.080097",
+  "chart_data_size": 13841,
+  "analysis_sections": [
+    "topic_distribution",
+    "topic_coherence",
+    "topic_words",
+    "doc_topic_matrix",
+    "overall_summary"
+  ]
+}

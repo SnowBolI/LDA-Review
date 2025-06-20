@@ -1,0 +1,12 @@
+{
+  "app_name": "wuthering-waves",
+  "created_at": "2025-06-18T09:27:49.343058",
+  "chart_data_size": 3055,
+  "analysis_sections": [
+    "topic_distribution",
+    "topic_coherence",
+    "topic_words",
+    "doc_topic_matrix",
+    "overall_summary"
+  ]
+}
