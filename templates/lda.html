@@ -1780,127 +1780,259 @@ function startTraining() {
   const loadingAnimation = document.getElementById("loading-animation");
   const progressText = document.getElementById("progress-text");
 
-  if (trainBtn) trainBtn.disabled = true;
-  if (cancelBtn) cancelBtn.style.display = "inline";
+  // Debug: Check if elements exist
+  console.log("Elements found:", {
+    trainBtn: !!trainBtn,
+    cancelBtn: !!cancelBtn,
+    loadingAnimation: !!loadingAnimation,
+    progressText: !!progressText
+  });
+
+  // Set UI untuk training state
+  if (trainBtn) {
+    trainBtn.disabled = true;
+    trainBtn.innerText = "Training...";
+  }
+  if (cancelBtn) cancelBtn.style.display = "inline-block";
   if (loadingAnimation) loadingAnimation.style.display = "flex";
   if (progressText) progressText.innerText = "Memulai training...";
 
-    fetch(`/lda/{{ app_name }}`, { method: "POST" })
-    .then(res => {
-console.log("Training request sent to:", `/lda/{{ app_name }}`, "status:", res.status);
+  // Perbaikan: Ambil app_name dari URL dengan cara yang lebih robust
+  const pathSegments = window.location.pathname.split('/').filter(segment => segment);
+  const appName = pathSegments[pathSegments.length - 1]; // Ambil segment terakhir
+  
+  console.log("Full pathname:", window.location.pathname);
+  console.log("Path segments:", pathSegments);
+  console.log("Extracted app name:", appName);
 
-      if (!res.ok) {
-        return res.json().then(d => { throw new Error(d.message); });
-      }
-      return res.json();
-    })
-    .then(data => {
-      console.log("Training response:", data);
-      if (data.status === "error") {
-        alert("Error: " + data.message);
-        resetTrainingUI();
-        return;
-      }
-console.log("Starting progress monitoring for", "{{ app_name }}");
+  // Validasi app_name
+  if (!appName || appName.length === 0) {
+    console.error("App name tidak ditemukan dari URL");
+    alert("Error: App name tidak dapat diidentifikasi dari URL");
+    resetTrainingUI();
+    return;
+  }
 
-      monitorProgress();
-    })
-    .catch(err => {
-      console.error("Error starting training:", err);
-      alert("Error memulai training: " + err.message);
-      resetTrainingUI();
+  console.log("Starting training for app:", appName);
+
+  // Perbaikan: Tambahkan timeout dan error handling yang lebih baik
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 detik timeout
+
+  fetch(`/lda/${appName}`, { 
+    method: "POST",
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: controller.signal
+  })
+  .then(res => {
+    clearTimeout(timeoutId);
+    console.log("Training request response:", {
+      url: `/lda/${appName}`,
+      status: res.status,
+      statusText: res.statusText,
+      ok: res.ok
     });
+    
+    // Handle different HTTP status codes
+    if (res.status === 429) {
+      return res.json().then(d => { 
+        throw new Error(`Terlalu banyak request: ${d.message}`); 
+      });
+    }
+    
+    if (!res.ok) {
+      return res.json().then(d => { 
+        throw new Error(d.message || `HTTP ${res.status}: ${res.statusText}`); 
+      }).catch(() => {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      });
+    }
+    
+    return res.json();
+  })
+  .then(data => {
+    console.log("Training response data:", data);
+    
+    if (data.status === "error") {
+      throw new Error(data.message || "Training gagal");
+    }
+    
+    if (data.status === "ongoing") {
+      console.log("Training already in progress, monitoring existing training");
+      alert("Training sudah berjalan. Monitoring progress...");
+      // Jangan reset UI, langsung monitor progress yang sudah ada
+      monitorProgress(appName);
+      return;
+    }
+    
+    if (data.status === "started") {
+      console.log("Training started successfully, monitoring progress for", appName);
+      alert("Training dimulai! Monitoring progress...");
+      monitorProgress(appName);
+      return;
+    }
+    
+    // Handle unexpected status
+    console.warn("Unexpected response status:", data.status);
+    alert("Response tidak dikenal: " + JSON.stringify(data));
+    resetTrainingUI();
+  })
+  .catch(error => {
+    clearTimeout(timeoutId);
+    console.error("Training request failed:", error);
+    
+    let errorMessage = "Training gagal dimulai";
+    if (error.name === 'AbortError') {
+      errorMessage = "Request timeout - server tidak merespons";
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    alert(errorMessage);
+    resetTrainingUI();
+  });
 }
 
+let progressInterval;
 
-function monitorProgress() {
-    let consecutiveErrors = 0;
-    const maxErrors = 5;
-    
-    interval = setInterval(() => {
-fetch("/progress/{{ app_name }}")
-
-            .then(res => {
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
-            .then(data => {
-                consecutiveErrors = 0; // Reset error counter
-                
-                const progressFill = document.getElementById("progress-fill");
-                const progressText = document.getElementById("progress-text");
-                
-                console.log("Progress data:", data); // Debug log
-                
-                if (progressFill) {
-                    progressFill.style.width = data.percent + "%";
-                    progressFill.style.transition = "width 0.3s ease";
-                }
-                if (progressText) {
-                    progressText.innerText = data.description + " (" + data.percent + "%)";
-                }
-
-                // Check if training is complete
-                if (data.percent >= 100) {
-                    console.log("Training completed!");
-                    clearInterval(interval);
-                    resetTrainingUI();
-                    
-                    if (progressText) {
-                        progressText.innerText = "Training selesai. Memuat ulang dalam 3 detik...";
-                    }
-                    
-                    setTimeout(() => {
-                        console.log("Reloading page...");
-                        location.reload();
-                    }, 3000);
-                    
-                    setTimeout(checkTrainingStatus, 2000);
-                }
-                
-                // Check if training was cancelled
-                if (data.description && data.description.toLowerCase().includes("dibatalkan")) {
-                    console.log("Training cancelled!");
-                    clearInterval(interval);
-                    resetTrainingUI();
-                    setTimeout(checkTrainingStatus, 2000);
-                }
-            })
-            .catch(err => {
-                consecutiveErrors++;
-                console.error(`Error fetching progress (${consecutiveErrors}/${maxErrors}):`, err);
-                
-                // Stop monitoring if too many consecutive errors
-                if (consecutiveErrors >= maxErrors) {
-                    console.error("Too many errors, stopping progress monitoring");
-                    clearInterval(interval);
-                    resetTrainingUI();
-                    
-                    const progressText = document.getElementById("progress-text");
-                    if (progressText) {
-                        progressText.innerText = "Error monitoring progress. Refresh halaman untuk melihat hasil.";
-                    }
-                }
-            });
-    }, 2000); // Increase interval to 2 seconds to reduce load
+function monitorProgress(appName) {
+  console.log("Starting progress monitoring for:", appName);
+  
+  // Clear any existing interval
+  if (progressInterval) {
+    clearInterval(progressInterval);
+  }
+  
+  let consecutiveErrors = 0;
+  const maxErrors = 5;
+  
+  const checkProgress = () => {
+    fetch(`/progress/${appName}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        consecutiveErrors = 0; // Reset error counter
+        console.log("Progress data:", data);
+        
+        const progressText = document.getElementById("progress-text");
+        const progressFill = document.getElementById("progress-fill");
+        const progressBar = document.getElementById("progress-bar");
+        
+        // Update progress text
+        if (progressText) {
+          progressText.innerText = `${data.description} (${data.percent}%)`;
+        }
+        
+        // Update progress bar - try both possible element IDs
+        const progressElement = progressFill || progressBar;
+        if (progressElement) {
+          progressElement.style.width = `${data.percent}%`;
+          progressElement.style.transition = "width 0.3s ease";
+          
+          // Set background color to ensure visibility
+          if (!progressElement.style.backgroundColor) {
+            progressElement.style.backgroundColor = "#4F46E5"; // Default blue color
+          }
+          
+          // If it's a progress bar, set aria attributes
+          if (progressElement.id === "progress-bar") {
+            progressElement.setAttribute('aria-valuenow', data.percent);
+          }
+        }
+        
+        // Check if training is complete
+        if (data.percent >= 100) {
+          console.log("Training completed!");
+          clearInterval(progressInterval);
+          
+          if (progressText) {
+            progressText.innerText = "Training selesai. Memuat ulang dalam 3 detik...";
+          }
+          
+          setTimeout(() => {
+            console.log("Reloading page...");
+            location.reload();
+          }, 3000);
+          
+          return;
+        }
+        
+        // Check if training was cancelled
+        if (data.description && data.description.toLowerCase().includes("dibatalkan")) {
+          console.log("Training cancelled!");
+          clearInterval(progressInterval);
+          resetTrainingUI();
+          setTimeout(checkTrainingStatus, 2000);
+          return;
+        }
+      })
+      .catch(error => {
+        consecutiveErrors++;
+        console.error(`Error fetching progress (${consecutiveErrors}/${maxErrors}):`, error);
+        
+        // Stop monitoring if too many consecutive errors
+        if (consecutiveErrors >= maxErrors) {
+          console.error("Too many errors, stopping progress monitoring");
+          clearInterval(progressInterval);
+          resetTrainingUI();
+          
+          const progressText = document.getElementById("progress-text");
+          if (progressText) {
+            progressText.innerText = "Error monitoring progress. Refresh halaman untuk melihat hasil.";
+          }
+        }
+      });
+  };
+  
+  // Start monitoring immediately
+  checkProgress();
+  
+  // Set up interval for continued monitoring
+  progressInterval = setInterval(checkProgress, 2000);
 }
 
 function resetTrainingUI() {
-    const trainBtn = document.getElementById("train-btn");
-    const cancelBtn = document.getElementById("cancel-btn");
-    const loadingAnimation = document.getElementById("loading-animation");
-
-    if (cancelBtn) cancelBtn.style.display = "none";
-    if (loadingAnimation) loadingAnimation.style.display = "none";
-
-    trainingInProgress = false; // ✅ Training sudah selesai
-
-    if (trainBtn) {
-        trainBtn.disabled = false;
-        trainBtn.innerHTML = '<i class="fas fa-brain"></i> Training Sekarang';
-    }
+  const trainBtn = document.getElementById("train-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const loadingAnimation = document.getElementById("loading-animation");
+  const progressText = document.getElementById("progress-text");
+  const progressFill = document.getElementById("progress-fill");
+  const progressBar = document.getElementById("progress-bar");
+  
+  if (trainBtn) {
+    trainBtn.disabled = false;
+    trainBtn.innerText = "Training Sekarang";
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.style.display = "none";
+  }
+  
+  if (loadingAnimation) {
+    loadingAnimation.style.display = "none";
+  }
+  
+  if (progressText) {
+    progressText.innerText = "";
+  }
+  
+  // Reset progress bar
+  const progressElement = progressFill || progressBar;
+  if (progressElement) {
+    progressElement.style.width = "0%";
+  }
+  
+  // Clear any existing interval
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
 }
 
 function cancelTraining() {

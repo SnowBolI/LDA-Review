@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 import traceback
 
 training_sessions = {}
+training_threads = {}
 MAX_CONCURRENT_TRAINING = 2  # Maksimal 2 training bersamaan
 TRAINING_TIMEOUT = 120  # 5 menit timeout jika tidak ada progress
 training_lock = threading.Lock()
@@ -30,6 +31,36 @@ APPS = {
     'arena-breakout': 'com.proximabeta.mf.uamo',
     'spotify': 'com.spotify.music'
 }
+
+def cleanup_old_app_data(app_name):
+    """Hapus semua data lama untuk aplikasi tertentu"""
+    files_to_delete = [
+        f"data/data_per_app/{app_name}.csv",  # Data scraping
+        f"models/{app_name}_lda.pkl",         # Model LDA
+        f"progress_{app_name}.json",          # Progress file
+        f"cancel_{app_name}.flag"             # Cancel flag
+    ]
+    
+    deleted_files = []
+    for file_path in files_to_delete:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                deleted_files.append(file_path)
+                print(f"Deleted: {file_path}")
+            except Exception as e:
+                print(f"Error deleting {file_path}: {e}")
+    
+    # Hapus chart data
+    try:
+        delete_chart_from_folder(app_name)
+        deleted_files.append(f"Chart data for {app_name}")
+        print(f"Deleted chart data for {app_name}")
+    except Exception as e:
+        print(f"Error deleting chart data for {app_name}: {e}")
+    
+    return deleted_files
+
 
 # Initialize progress file
 def init_progress_file(app_name=None):
@@ -51,6 +82,23 @@ def init_progress_file(app_name=None):
 # Call on startup
 if not os.path.exists("progress.json"):
     init_progress_file()
+
+@app.route('/cleanup-data/<app_name>', methods=['POST'])
+def cleanup_app_data(app_name):
+    """Endpoint untuk hapus semua data aplikasi"""
+    try:
+        deleted_files = cleanup_old_app_data(app_name)
+        return jsonify({
+            "status": "success",
+            "message": f"Data lama untuk {app_name} berhasil dihapus",
+            "deleted_files": deleted_files
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error menghapus data: {str(e)}"
+        }), 500
+
 
 @app.route('/progress')
 @app.route('/progress/<app_name>')
@@ -175,46 +223,66 @@ def cleanup_expired_sessions():
         current_time = datetime.now()
         expired_sessions = []
         
+        # Cleanup dead threads first
+        dead_threads = []
+        for app_name, thread in training_threads.items():
+            if not thread.is_alive():
+                dead_threads.append(app_name)
+        
+        for app_name in dead_threads:
+            del training_threads[app_name]
+            print(f"Cleaned up dead thread for app: {app_name}")
+        
+        # Existing cleanup logic...
         for session_id, session_info in training_sessions.items():
             is_expired = False
             app_name = session_info['app_name']
             progress_file = f"progress_{app_name}.json"
             cancel_file = f"cancel_{app_name}.flag"
             
-            # Cek apakah sudah timeout (5 menit tanpa aktivitas)
-            if current_time - session_info['start_time'] > timedelta(seconds=TRAINING_TIMEOUT):
-                # Cek apakah training masih berjalan dengan melihat progress file
+            try:
+                if os.path.exists(cancel_file):
+                    is_expired = True
+                    print(f"Training cancelled for session: {session_id}")
+                elif os.path.exists(progress_file):
+                    with open(progress_file, "r") as f:
+                        progress_data = json.load(f)
+                    
+                    progress_percent = progress_data.get("percent", 0)
+                    
+                    if progress_percent >= 100:
+                        is_expired = True
+                        print(f"Training completed for session: {session_id}")
+                    elif current_time - session_info['start_time'] > timedelta(seconds=TRAINING_TIMEOUT):
+                        timestamp_str = progress_data.get("timestamp")
+                        if timestamp_str:
+                            try:
+                                progress_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00').replace('+00:00', ''))
+                                if current_time - progress_time > timedelta(seconds=120):
+                                    is_expired = True
+                                    print(f"Training stuck/timeout for session: {session_id}")
+                            except:
+                                is_expired = True
+                        else:
+                            is_expired = True
+                            print(f"Training timeout (no timestamp) for session: {session_id}")
+                else:
+                    if current_time - session_info['start_time'] > timedelta(seconds=60):
+                        is_expired = True
+                        print(f"No progress file for session: {session_id}")
+                        
+            except Exception as e:
+                print(f"Error checking progress for session {session_id}: {e}")
+                is_expired = True
+            
+            if is_expired:
+                expired_sessions.append(session_id)
                 try:
                     if os.path.exists(progress_file):
                         with open(progress_file, "r") as f:
                             progress_data = json.load(f)
-                        
-                        # Cek apakah progress sudah 100% atau ada flag cancel
-                        if progress_data.get("percent", 0) >= 100:
-                            is_expired = True
-                            print(f"Training completed for session: {session_id}")
-                        elif os.path.exists(cancel_file):
-                            is_expired = True
-                            print(f"Training cancelled for session: {session_id}")
-                        elif progress_data.get("percent", 0) == 0 and current_time - session_info['start_time'] > timedelta(seconds=60):
-                            # Jika tidak ada progress setelah 1 menit, anggap error
-                            is_expired = True
-                            print(f"Training stuck for session: {session_id}")
-                    else:
-                        # Tidak ada progress file setelah timeout
-                        is_expired = True
-                        print(f"No progress file for session: {session_id}")
-                        
-                except Exception as e:
-                    print(f"Error checking progress for session {session_id}: {e}")
-                    is_expired = True
-            
-            if is_expired:
-                expired_sessions.append(session_id)
-                # Cleanup files untuk session yang expired
-                try:
-                    if os.path.exists(progress_file):
-                        os.remove(progress_file)
+                        if progress_data.get("percent", 0) < 100:
+                            os.remove(progress_file)
                     if os.path.exists(cancel_file):
                         os.remove(cancel_file)
                 except Exception as e:
@@ -223,34 +291,99 @@ def cleanup_expired_sessions():
         for session_id in expired_sessions:
             del training_sessions[session_id]
             print(f"Cleaned up expired training session: {session_id}")
-
+            
 def can_start_training(client_ip, app_name):
     """Check if client can start training"""
     cleanup_expired_sessions()
     
     with training_lock:
-        # Check if this client is already training this app
         session_id = f"{client_ip}_{app_name}"
+        
+        # Cek apakah ada thread training yang masih aktif untuk app ini
+        if app_name in training_threads:
+            thread = training_threads[app_name]
+            if thread.is_alive():
+                # Ada thread aktif, cek progress untuk memberikan info yang akurat
+                try:
+                    progress_file = f"progress_{app_name}.json"
+                    if os.path.exists(progress_file):
+                        with open(progress_file, "r") as f:
+                            progress_data = json.load(f)
+                        progress_percent = progress_data.get("percent", 0)
+                        return False, f"Training masih berjalan di background ({progress_percent:.1f}%). Harap tunggu hingga selesai."
+                    else:
+                        return False, "Training sedang berjalan di background. Harap tunggu."
+                except:
+                    return False, "Training sedang berjalan di background. Harap tunggu."
+            else:
+                # Thread sudah mati, bersihkan
+                del training_threads[app_name]
+        
+        # Cek session seperti biasa
         if session_id in training_sessions:
-            # Cek apakah training yang ada sudah selesai
             try:
                 progress_file = f"progress_{app_name}.json"
+                cancel_file = f"cancel_{app_name}.flag"
+                
+                if os.path.exists(cancel_file):
+                    del training_sessions[session_id]
+                    print(f"Removed cancelled session: {session_id}")
+                    return True, "OK"
+                
                 if os.path.exists(progress_file):
                     with open(progress_file, "r") as f:
                         progress_data = json.load(f)
                     
-                    if progress_data.get("percent", 0) >= 100:
-                        # Training sudah selesai, hapus session
+                    progress_percent = progress_data.get("percent", 0)
+                    
+                    if progress_percent >= 100:
                         del training_sessions[session_id]
                         print(f"Removed completed session: {session_id}")
+                        return True, "OK"
+                    elif progress_percent > 0:
+                        try:
+                            timestamp_str = progress_data.get("timestamp")
+                            if timestamp_str:
+                                progress_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00').replace('+00:00', ''))
+                                time_diff = datetime.now() - progress_time
+                                
+                                if time_diff > timedelta(seconds=120):
+                                    del training_sessions[session_id]
+                                    print(f"Removed stuck session: {session_id}")
+                                    return True, "OK"
+                                else:
+                                    return False, f"Training sedang berjalan ({progress_percent:.1f}%). Silakan tunggu atau refresh halaman untuk melihat progress."
+                            else:
+                                return False, f"Training sedang berjalan ({progress_percent:.1f}%). Silakan tunggu atau refresh halaman untuk melihat progress."
+                        except Exception as e:
+                            print(f"Error parsing timestamp: {e}")
+                            return False, f"Training sedang berjalan ({progress_percent:.1f}%). Silakan tunggu atau refresh halaman untuk melihat progress."
                     else:
-                        return False, "Anda sudah memiliki sesi training aktif untuk aplikasi ini"
+                        session_start = training_sessions[session_id]['start_time']
+                        time_diff = datetime.now() - session_start
+                        
+                        if time_diff > timedelta(seconds=60):
+                            del training_sessions[session_id]
+                            print(f"Removed failed session: {session_id}")
+                            return True, "OK"
+                        else:
+                            return False, "Training baru saja dimulai. Silakan tunggu sebentar."
                 else:
-                    return False, "Anda sudah memiliki sesi training aktif untuk aplikasi ini"
-            except:
-                return False, "Anda sudah memiliki sesi training aktif untuk aplikasi ini"
+                    session_start = training_sessions[session_id]['start_time']
+                    time_diff = datetime.now() - session_start
+                    
+                    if time_diff > timedelta(seconds=30):
+                        del training_sessions[session_id]
+                        print(f"Removed session without progress: {session_id}")
+                        return True, "OK"
+                    else:
+                        return False, "Training sedang diinisialisasi..."
+                        
+            except Exception as e:
+                print(f"Error checking session {session_id}: {e}")
+                del training_sessions[session_id]
+                return True, "OK"
         
-        # Check if maximum concurrent training reached
         if len(training_sessions) >= MAX_CONCURRENT_TRAINING:
             active_sessions = []
             for sid, info in training_sessions.items():
@@ -259,7 +392,7 @@ def can_start_training(client_ip, app_name):
             return False, f"Maksimal {MAX_CONCURRENT_TRAINING} training bersamaan. Sesi aktif: {'; '.join(active_sessions)}"
         
         return True, "OK"
-    
+       
 def start_training_session(client_ip, app_name):
     """Start a new training session"""
     with training_lock:
@@ -779,14 +912,26 @@ def lda_page(app_name):
             # Check if training can be started
             can_train, message = can_start_training(client_ip, app_name)
             if not can_train:
-                return jsonify({
-                    "status": "error",
-                    "message": message
-                }), 429  # Too Many Requests
+                # Check if it's ongoing training vs error
+                if "Training masih berjalan" in message or "Training sedang berjalan" in message:
+                    return jsonify({
+                        "status": "ongoing",
+                        "message": message,
+                        "app_name": app_name
+                    }), 200  # Return 200 so frontend can handle ongoing training
+                else:
+                    return jsonify({
+                        "status": "error", 
+                        "message": message
+                    }), 429
 
             # Start training session
             session_id = start_training_session(client_ip, app_name)
             try:
+                # TAMBAHKAN BARIS INI sebelum reset progress:
+                # Hapus semua data lama sebelum training
+                cleanup_old_app_data(app_name)
+                
                 # Reset progress file untuk app ini specifically
                 progress_file = f"progress_{app_name}.json"
                 if os.path.exists(progress_file):
@@ -812,16 +957,27 @@ def lda_page(app_name):
                 def training_task():
                     try:
                         print(f"[App] Starting training task for {app_name}")
+                        
+                        # Cek cancel flag sebelum mulai
+                        cancel_file = f"cancel_{app_name}.flag"
+                        if os.path.exists(cancel_file):
+                            print(f"[App] Training cancelled before start for {app_name}")
+                            update_progress(0, f"Training {app_name} dibatalkan", app_name)
+                            return
+                            
                         run_lda_for_app(app_name)
                         
-                        # Check if training was successful by checking if model exists
+                        # Cek lagi setelah training selesai
+                        if os.path.exists(cancel_file):
+                            print(f"[App] Training cancelled during execution for {app_name}")
+                            update_progress(0, f"Training {app_name} dibatalkan", app_name)
+                            return
+                        
                         model_file = f"models/{app_name}_lda.pkl"
                         if os.path.exists(model_file):
                             print(f"[App] Training completed successfully for {app_name}")
                             update_progress(100, f"Training {app_name} selesai!", app_name)
-                        else:
-                            print(f"[App] Training failed - no model file created for {app_name}")
-                            update_progress(0, f"Training {app_name} gagal - model tidak tersimpan", app_name)
+                            return
                             
                     except Exception as e:
                         error_msg = str(e)
@@ -830,9 +986,26 @@ def lda_page(app_name):
                         traceback.print_exc()
                         update_progress(0, f"Training {app_name} gagal: {error_msg}", app_name)
                     finally:
-                        # End training session
+                        # Cleanup thread tracking dan session
                         print(f"[App] Ending training session for {app_name}")
                         end_training_session(client_ip, app_name)
+                        
+                        # Remove from thread tracking
+                        with training_lock:
+                            if app_name in training_threads:
+                                del training_threads[app_name]
+                                print(f"[App] Removed thread tracking for {app_name}")
+
+                # Start training thread dengan tracking
+                training_thread = threading.Thread(target=training_task)
+                training_thread.daemon = True
+
+                # Track thread sebelum start
+                with training_lock:
+                    training_threads[app_name] = training_thread
+
+                training_thread.start()           
+
                 # Start training thread
                 training_thread = threading.Thread(target=training_task)
                 training_thread.daemon = True
