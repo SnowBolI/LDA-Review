@@ -13,8 +13,20 @@ from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
 
-# === NLTK setup ===
-stop_words = set(stopwords.words('english'))
+# === NLTK setup dengan auto-download ===
+try:
+    # Coba akses stopwords, jika gagal maka download
+    stop_words = set(stopwords.words('english'))
+except LookupError:
+    # Download data yang diperlukan
+    print("Downloading NLTK data...")
+    nltk.download('stopwords', quiet=True)
+    nltk.download('wordnet', quiet=True)
+    nltk.download('punkt', quiet=True)
+    nltk.download('averaged_perceptron_tagger', quiet=True)
+    nltk.download('omw-1.4', quiet=True)
+    stop_words = set(stopwords.words('english'))
+
 custom_stopwords = {'like', 'ok', 'im', 'get', 'one', 'really', 'app'}
 stop_words.update(custom_stopwords)
 
