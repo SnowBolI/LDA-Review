@@ -31,6 +31,36 @@ APPS = {
     'spotify': 'com.spotify.music'
 }
 
+def cleanup_old_app_data(app_name):
+    """Hapus semua data lama untuk aplikasi tertentu"""
+    files_to_delete = [
+        f"data/data_per_app/{app_name}.csv",  # Data scraping
+        f"models/{app_name}_lda.pkl",         # Model LDA
+        f"progress_{app_name}.json",          # Progress file
+        f"cancel_{app_name}.flag"             # Cancel flag
+    ]
+    
+    deleted_files = []
+    for file_path in files_to_delete:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                deleted_files.append(file_path)
+                print(f"Deleted: {file_path}")
+            except Exception as e:
+                print(f"Error deleting {file_path}: {e}")
+    
+    # Hapus chart data
+    try:
+        delete_chart_from_folder(app_name)
+        deleted_files.append(f"Chart data for {app_name}")
+        print(f"Deleted chart data for {app_name}")
+    except Exception as e:
+        print(f"Error deleting chart data for {app_name}: {e}")
+    
+    return deleted_files
+
+
 # Initialize progress file
 def init_progress_file(app_name=None):
     """Initialize progress file with timestamp for specific app or global"""
@@ -51,6 +81,23 @@ def init_progress_file(app_name=None):
 # Call on startup
 if not os.path.exists("progress.json"):
     init_progress_file()
+
+@app.route('/cleanup-data/<app_name>', methods=['POST'])
+def cleanup_app_data(app_name):
+    """Endpoint untuk hapus semua data aplikasi"""
+    try:
+        deleted_files = cleanup_old_app_data(app_name)
+        return jsonify({
+            "status": "success",
+            "message": f"Data lama untuk {app_name} berhasil dihapus",
+            "deleted_files": deleted_files
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error menghapus data: {str(e)}"
+        }), 500
+
 
 @app.route('/progress')
 @app.route('/progress/<app_name>')
@@ -787,6 +834,10 @@ def lda_page(app_name):
             # Start training session
             session_id = start_training_session(client_ip, app_name)
             try:
+                # TAMBAHKAN BARIS INI sebelum reset progress:
+                # Hapus semua data lama sebelum training
+                cleanup_old_app_data(app_name)
+                
                 # Reset progress file untuk app ini specifically
                 progress_file = f"progress_{app_name}.json"
                 if os.path.exists(progress_file):
